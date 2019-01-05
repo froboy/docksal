@@ -4669,7 +4669,7 @@ _exec ()
 	# 3) execute
 	# Special case for cli that uses bash
 	if [[ "$CONTAINER_NAME" == "cli" ]]; then
-		if [[ $(echo "$cmd" | xargs) == "RUN_INTERACTIVE_SHELL_SESSION" ]]; then
+		if [[ "$cmd" =~ "RUN_INTERACTIVE_SHELL_SESSION" ]]; then
 			# interactive session
 			${winpty} docker exec -it -u docker "$container_id" bash -il
 		elif is_tty && [[ "$no_tty" != true ]]; then
@@ -4680,7 +4680,7 @@ _exec ()
 			docker exec -u docker "$container_id" bash -lc "$cmd"
 		fi
 	else
-		if [[ $(echo "$cmd" | xargs) == "RUN_INTERACTIVE_SHELL_SESSION" ]]; then
+		if [[ "$cmd" =~ "RUN_INTERACTIVE_SHELL_SESSION" ]]; then
 			# interactive session
 			${winpty} docker exec -it "$container_id" sh -il
 		elif is_tty && [[ "$no_tty" != true ]]; then
