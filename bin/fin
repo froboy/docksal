@@ -4601,7 +4601,7 @@ _bash ()
 	fi
 
 	# Pass container name to _run
-	CONTAINER_NAME=$1 _exec bash -il
+	CONTAINER_NAME=$1 _exec RUN_INTERACTIVE_SHELL_SESSION
 }
 
 # Run a command in the cli container changing dir to the same folder
@@ -4631,6 +4631,10 @@ _exec ()
 
 	CONTAINER_NAME=${CONTAINER_NAME:-cli}
 	container_id=$(get_container_id "$CONTAINER_NAME")
+	# If no such service found in project, use container name as is since it will be a full container name
+	if [[ -z $container_id ]]; then
+		container_id="$CONTAINER_NAME"
+	fi
 
 	# ------------------------------------------------ #
 	# 1) cmd
@@ -4663,27 +4667,29 @@ _exec ()
 
 	# ------------------------------------------------ #
 	# 3) execute
-	# Allow entering arbitrary containers by name (e.g., system containers like vhost-proxy).
-	if [[ "$container_id" == "" ]]; then
-		${winpty} docker exec -it "$CONTAINER_NAME" sh -i
-		return
-	fi
-
+	# Special case for cli that uses bash
 	if [[ "$CONTAINER_NAME" == "cli" ]]; then
-		# Commands in cli should be run using the docker user, not root.
-		local container_user='-u docker'
-	fi
-
-	# Enter project containers
-	# Use the docker user in cli (-u docker) instead of root (default user).
-	# COLUMNS and LINES have to be passed to workaround a bug in Docker. See https://github.com/moby/moby/issues/35407#issuecomment-355753176
-	if is_tty && [[ "$no_tty" != true ]]; then
-		# interactive
-		# (exit \$?) is a hack to return correct exit codes when docker exec is run with tty (-t).
-		${winpty} docker exec -e COLUMNS -e LINES -it ${container_user} ${container_id} bash -ilc "$cmd; (exit \$?)"
+		if [[ $(echo "$cmd" | xargs) == "RUN_INTERACTIVE_SHELL_SESSION" ]]; then
+			# interactive session
+			${winpty} docker exec -it -u docker "$container_id" bash -il
+		elif is_tty && [[ "$no_tty" != true ]]; then
+			# interactive command
+			${winpty} docker exec -it -u docker "$container_id" bash -ilc "$cmd"
+		else
+			# non-interactive command
+			docker exec -u docker "$container_id" bash -lc "$cmd"
+		fi
 	else
-		# non-interactive
-		docker exec -e COLUMNS -e LINES ${container_user} ${container_id} bash -lc "$cmd"
+		if [[ $(echo "$cmd" | xargs) == "RUN_INTERACTIVE_SHELL_SESSION" ]]; then
+			# interactive session
+			${winpty} docker exec -it "$container_id" sh -il
+		elif is_tty && [[ "$no_tty" != true ]]; then
+			# interactive command
+			${winpty} docker exec -it "$container_id" sh -ilc "$cmd"
+		else
+			# non-interactive command
+			docker exec "$container_id" sh -lc "$cmd"
+		fi
 	fi
 	# ------------------------------------------------ #
 }
